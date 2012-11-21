@@ -7,7 +7,7 @@ import string
 import sys
 import dictrie
 
-dictionary = dictrie.DictTrie("all.txt")
+dictionary = dictrie.DictTrie("allwords.txt")
 
 class ispell:
   def __init__(self):
