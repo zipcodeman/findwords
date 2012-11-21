@@ -7,7 +7,7 @@ import string
 import sys
 import dictrie
 
-dictionary = dictrie.DictTrie("wordsEn.txt")
+dictionary = dictrie.DictTrie("all.txt")
 
 class ispell:
   def __init__(self):
@@ -65,6 +65,8 @@ while not fringe.empty():
   moves, word =  fringe.get()
   length = max(length, len(word))
   newmoves = []
+  #for i in range(3):
+    #x = i - 1
   if moves[-1][0] > 0:
     newmoves.append((moves[-1][0] - 1, moves[-1][1]))
   if moves[-1][1] > 0:
