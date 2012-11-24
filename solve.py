@@ -1,37 +1,80 @@
 import Queue
 
 import itertools
-import popen2
 import random
 import string
 import sys
 import dictrie
+import time
 
 dictionary = dictrie.DictTrie("allwords.txt")
 
-class ispell:
-  def __init__(self):
-    self._f = popen2.Popen3("ispell")
-    self._f.fromchild.readline()
-  def __call__(self, word):
-    self._f.tochild.write(word + '\n')
-    self._f.tochild.flush()
-    s = self._f.fromchild.readline()
-    self._f.fromchild.readline()
-    if s[:8] == "word: ok":
-      return None
-    else:
-      return (s[17:-1]).split(', ')
+class Word:
+  def __init__(self, position, grid):
+    self._p = position
+    self._grid = grid
+    self._word = grid[self._p[1]][self._p[0]]
+    self._path = [position]
 
-checker = ispell()
+  @staticmethod
+  def possibleMoves(position):
+    x, y = position
+    successors = []
+    for i in range(3):
+      xdel = i - 1
+      for j in range(3):
+        ydel = j - 1
+        if xdel != 0 or ydel != 0:
+          successors.append((x + xdel, y + ydel))
+    return successors
+
+  def copy(self):
+    retval = Word(self._p, self._grid)
+    retval._word = self._word
+    retval._path = self._path[:]
+    return retval
+
+  def generateSuccessors(self):
+    moves = Word.possibleMoves(self._p)
+    retval = []
+    for move in moves:
+      x, y = move
+      if y >= 0 and y < len(self._grid):
+        if x >= 0 and x < len(self._grid[y]):
+          if (x, y) not in self._path:
+            n = self.copy()
+            n._path.append((x, y))
+            n._p = (x, y)
+            n._word += self._grid[y][x]
+            retval.append(n)
+    return retval
+
+  def getWord(self):
+    return self._word
+
+  def __len__(self):
+    return len(self._word)
+
+  def __str__(self):
+    row = '+--+--+--+--+\n'
+    retval = self._word + '\n'
+    retval += row
+    y = 0
+    for r in self._grid:
+      x = 0
+      retval += '|'
+      for c in r:
+        if (x, y) in self._path:
+          retval += '% 2d|' % (self._path.index((x, y)) + 1)
+        else:
+          retval += '% 2s|' % '  '
+        x += 1
+      retval += '\n'
+      retval += row
+      y += 1
+    return retval
+
 dims = [4,4]
-
-letters = [
-  ['p', 'l', 'm', 't'],
-  ['w', 'p', 'a', 'e'],
-  ['n', 'n', 'r', 'v'],
-  ['i', 'n', 'a', 'l']
-]
 
 letters = []
 while True:
@@ -40,10 +83,6 @@ while True:
     break
   letters.append(i.split())
 
-# for a in range(dims[0]):
-  # for b in range(dims[1]):
-    # letters[a][b] = random.choice(string.lowercase)
-
 for line in letters:
   for letter in line:
     print letter,
@@ -51,7 +90,7 @@ for line in letters:
 
 fringe = Queue.Queue()
 for perm in itertools.product(range(4), repeat=2):
-  fringe.put(( [perm], letters[perm[1]][perm[0]] ))
+  fringe.put(Word(perm, letters))
 
 count = 0
 length = 0
@@ -59,43 +98,25 @@ found = {}
 
 while not fringe.empty():
   count += 1
-  if (count % 1000) == 0:
+  if (count % 100) == 0:
     sys.stdout.write('\r' + "Processed %d (max length %d)" % (count, length))
     sys.stdout.flush()
-  moves, word =  fringe.get()
+  word =  fringe.get()
   length = max(length, len(word))
-  newmoves = []
-  #for i in range(3):
-    #x = i - 1
-  if moves[-1][0] > 0:
-    newmoves.append((moves[-1][0] - 1, moves[-1][1]))
-  if moves[-1][1] > 0:
-    newmoves.append((moves[-1][0], moves[-1][1] - 1))
-  if moves[-1][0] < 3:
-    newmoves.append((moves[-1][0] + 1, moves[-1][1]))
-  if moves[-1][1] < 3:
-    newmoves.append((moves[-1][0], moves[-1][1] + 1))
-  if moves[-1][0] > 0 and moves[-1][1] > 0:
-    newmoves.append((moves[-1][0] - 1, moves[-1][1] - 1))
-  if moves[-1][0] > 0 and moves[-1][1] < 3:
-    newmoves.append((moves[-1][0] - 1, moves[-1][1] + 1))
-  if moves[-1][0] < 3 and moves[-1][1] > 0:
-    newmoves.append((moves[-1][0] + 1, moves[-1][1] - 1))
-  if moves[-1][0] < 3 and moves[-1][1] < 3:
-    newmoves.append((moves[-1][0] + 1, moves[-1][1] + 1))
 
-  for newpos in newmoves:
-    newword = word + letters[newpos[1]][newpos[0]]
-    m = moves[:]
-    if newpos not in moves:
-      m.append(newpos)
-      if dictionary.isWord(newword) and len(newword) > 2:
-        if len(newword) not in found:
-          found[len(newword)] = set()
-        found[len(newword)].add(newword)
-      if dictionary.couldBeWord(newword):
-        fringe.put((m, newword))
+  newmoves = word.generateSuccessors()
+
+  for new in newmoves:
+    if dictionary.isWord(new.getWord()) and len(new) > 2:
+      if len(new) not in found:
+        found[len(new)] = set()
+      found[len(new)].add(new)
+    if dictionary.couldBeWord(new.getWord()):
+      fringe.put(new)
 
 for i in reversed(sorted(found.keys())):
   print
-  print '\t'.join(sorted(found[i]))
+  print
+  print len(found[i])
+  for element in found[i]:
+    print element.getWord() + '\t',
